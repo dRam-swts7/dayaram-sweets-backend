@@ -2,9 +2,12 @@ import mongoose, { Schema } from 'mongoose';
 
 export interface IWeightOption {
   weight: string;
+  unit?: 'g' | 'kg' | 'pieces' | 'pcs' | 'box' | 'pack' | string;
+  value?: number;
   price: number;
   originalPrice?: number;
   stock: number;
+  pieces?: number;
 }
 
 export interface IProduct {
@@ -66,12 +69,18 @@ const ProductSchema: Schema = new Schema(
         'Andhra Sweets',
         'Cashew Sweets',
         'Bengali Sweets',
+        'Ghee & Milk Bengali Sweets',
+        'Milk Bengali Sweets',
         'Khoya Sweets',
         'Laddu Sweets',
         'Milk Sweets',
         'Home Foods',
         'Gift Boxes',
         'Category Unspecified',
+        // Legacy uppercase aliases
+        'GHEE AND MILK BENGALI',
+        'HOME FOODS SWEET & NAMKINS',
+        'MILK Ghee / MILK BENGALI',
       ],
       default: 'Category Unspecified',
     },
@@ -91,6 +100,14 @@ const ProductSchema: Schema = new Schema(
             required: [true, 'Weight is required'],
             trim: true,
           },
+          unit: {
+            type: String,
+            trim: true,
+          },
+          value: {
+            type: Number,
+            min: [0, 'Value cannot be negative'],
+          },
           price: {
             type: Number,
             required: [true, 'Price is required'],
@@ -105,6 +122,10 @@ const ProductSchema: Schema = new Schema(
             required: [true, 'Stock quantity is required'],
             min: [0, 'Stock cannot be negative'],
             default: 0,
+          },
+          pieces: {
+            type: Number,
+            min: [0, 'Pieces cannot be negative'],
           },
         },
       ],

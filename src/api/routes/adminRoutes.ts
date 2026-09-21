@@ -41,6 +41,7 @@ import {
   toggleCouponStatus,
   getCouponStats
 } from '../controllers/couponController';
+import { getHeroBanner, updateHeroBanner } from '../controllers/bannerController';
 import { cancelImageUpload, uploadImageToCloudinary } from '../controllers/cloudinaryController';
 import { validate } from '../middleware/validate';
 import { authenticateAdmin, authorizeAdmin } from '../middleware/auth';
@@ -216,6 +217,25 @@ router.get(
 
 // Public: Get delivery settings for storefront (no auth)
 router.get('/public/delivery-settings', getDeliveryCharges);
+
+// Public: Get hero banner for storefront (no auth)
+router.get('/public/banner/hero', getHeroBanner);
+
+// Get hero banner (admin)
+router.get(
+  '/banner/hero',
+  authenticateAdmin,
+  authorizeAdmin('read'),
+  getHeroBanner
+);
+
+// Update hero banner (admin)
+router.put(
+  '/banner/hero',
+  authenticateAdmin,
+  authorizeAdmin('write'),
+  updateHeroBanner
+);
 
 // Update or create delivery charge
 router.put(

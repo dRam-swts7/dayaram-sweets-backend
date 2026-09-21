@@ -11,6 +11,13 @@ const CATEGORY_MAP: Record<string, string> = {
   'cashew sweets': 'Cashew Sweets',
   'bengali': 'Bengali Sweets',
   'bengali sweets': 'Bengali Sweets',
+  'ghee and milk bengali': 'Ghee & Milk Bengali Sweets',
+  'ghee and milk bengali sweets': 'Ghee & Milk Bengali Sweets',
+  'ghee & milk bengali': 'Ghee & Milk Bengali Sweets',
+  'ghee & milk bengali sweets': 'Ghee & Milk Bengali Sweets',
+  'milk ghee / milk bengali': 'Milk Bengali Sweets',
+  'milk bengali': 'Milk Bengali Sweets',
+  'milk bengali sweets': 'Milk Bengali Sweets',
   'khoya': 'Khoya Sweets',
   'khoya sweets': 'Khoya Sweets',
   'laddu': 'Laddu Sweets',
@@ -19,6 +26,8 @@ const CATEGORY_MAP: Record<string, string> = {
   'milk sweets': 'Milk Sweets',
   'home': 'Home Foods',
   'home foods': 'Home Foods',
+  'home foods sweet & namkins': 'Home Foods',
+  'home foods sweets & namkeens': 'Home Foods',
   'gift boxes': 'Gift Boxes',
   'gift-boxes': 'Gift Boxes',
   'giftboxes': 'Gift Boxes',
@@ -36,9 +45,79 @@ const toCanonicalCategory = (rawValue: unknown): string => {
   return CATEGORY_MAP[normalized] || 'Category Unspecified';
 };
 
+export const normalizeWeightOption = (option: any) => {
+  if (!option || typeof option !== 'object') return option;
+  let rawWeight = String(option.weight || '').trim();
+  let unit = option.unit ? String(option.unit).trim().toLowerCase() : undefined;
+  let value = option.value !== undefined && option.value !== null && option.value !== '' ? Number(option.value) : undefined;
+  let pieces = option.pieces !== undefined && option.pieces !== null && option.pieces !== '' ? Number(option.pieces) : undefined;
+
+  if (unit === 'pieces' || unit === 'pcs') {
+    if (value && !pieces) pieces = value;
+    if (pieces && !value) value = pieces;
+    if (pieces) rawWeight = `${pieces} pieces`;
+    unit = 'pieces';
+  } else if (unit === 'g' || unit === 'gm' || unit === 'grams') {
+    if (value) rawWeight = `${value}g`;
+    unit = 'g';
+  } else if (unit === 'kg' || unit === 'kilograms') {
+    if (value) rawWeight = `${value} kg`;
+    unit = 'kg';
+  } else if (unit === 'box' || unit === 'pack') {
+    if (value) rawWeight = `${value} ${unit}`;
+  } else if (/^\d+(\.\d+)?$/.test(rawWeight)) {
+    const num = Number(rawWeight);
+    if (pieces) {
+      unit = 'pieces';
+      rawWeight = `${pieces} pieces`;
+    } else {
+      unit = 'g';
+      value = num;
+      rawWeight = `${num}g`;
+    }
+  } else if (/^(\d+(\.\d+)?)\s*(g|gm|grams)$/i.test(rawWeight)) {
+    const match = rawWeight.match(/^(\d+(\.\d+)?)\s*(g|gm|grams)$/i);
+    if (match) {
+      value = Number(match[1]);
+      unit = 'g';
+      rawWeight = `${value}g`;
+    }
+  } else if (/^(\d+(\.\d+)?)\s*(kg|kgs|kilo|kilograms)$/i.test(rawWeight)) {
+    const match = rawWeight.match(/^(\d+(\.\d+)?)\s*(kg|kgs|kilo|kilograms)$/i);
+    if (match) {
+      value = Number(match[1]);
+      unit = 'kg';
+      rawWeight = `${value} kg`;
+    }
+  } else if (/^(\d+)\s*(pcs|pc|pieces|piece)$/i.test(rawWeight)) {
+    const match = rawWeight.match(/^(\d+)\s*(pcs|pc|pieces|piece)$/i);
+    if (match) {
+      pieces = Number(match[1]);
+      value = pieces;
+      unit = 'pieces';
+      rawWeight = `${pieces} pieces`;
+    }
+  }
+
+  return {
+    ...option,
+    weight: rawWeight || 'Default',
+    ...(unit ? { unit } : {}),
+    ...(value !== undefined && !isNaN(value) ? { value } : {}),
+    ...(pieces !== undefined && !isNaN(pieces) ? { pieces } : {}),
+    price: Number(option.price || 0),
+    stock: Number(option.stock || 0),
+    ...(option.originalPrice !== undefined ? { originalPrice: Number(option.originalPrice) } : {}),
+  };
+};
+
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const product = await Product.create(req.body);
+    const body = { ...req.body };
+    if (Array.isArray(body.weightOptions)) {
+      body.weightOptions = body.weightOptions.map(normalizeWeightOption);
+    }
+    const product = await Product.create(body);
     res.status(201).json({ message: 'Product created successfully', product });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
@@ -146,15 +225,19 @@ export const getSpecialCollection = async (req: Request, res: Response): Promise
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const { productId } = req.params;
+    const updateData = { ...req.body };
+    if (Array.isArray(updateData.weightOptions)) {
+      updateData.weightOptions = updateData.weightOptions.map(normalizeWeightOption);
+    }
     // Match by productId slug, or by Mongo _id (products created via the admin
     // have no productId, so the client sends the _id instead).
     let product = await Product.findOneAndUpdate(
       { productId },
-      req.body,
+      updateData,
       { new: true }
     );
     if (!product && mongoose.Types.ObjectId.isValid(productId)) {
-      product = await Product.findByIdAndUpdate(productId, req.body, { new: true });
+      product = await Product.findByIdAndUpdate(productId, updateData, { new: true });
     }
     if (!product) {
       res.status(404).json({ message: 'Product not found' });
@@ -468,14 +551,15 @@ export const bulkAddProducts = async (req: Request, res: Response): Promise<void
         // Each Excel row is one product with a single weight option built from
         // the weight/price/originalPrice/stock columns. Multi-option products
         // are created via the admin UI or the JSON bulk import.
-        const weightOption: any = {
-          weight: String(row.weight || row.Weight || 'Default'),
+        const rawWeight = String(row.weight || row.Weight || (row.pieces || row.Pieces ? `${row.pieces || row.Pieces} pieces` : 'Default'));
+        const rawPieces = row.pieces !== undefined ? Number(row.pieces) : (row.Pieces !== undefined ? Number(row.Pieces) : undefined);
+        const weightOption = normalizeWeightOption({
+          weight: rawWeight,
+          pieces: rawPieces,
           price: Number(row.price || row.Price),
           stock: row.stock !== undefined ? Number(row.stock) : (row.Stock !== undefined ? Number(row.Stock) : 0),
-        };
-        if (row.originalPrice || row.OriginalPrice) {
-          weightOption.originalPrice = Number(row.originalPrice || row.OriginalPrice);
-        }
+          ...(row.originalPrice || row.OriginalPrice ? { originalPrice: Number(row.originalPrice || row.OriginalPrice) } : {}),
+        });
 
         const productData: any = {
           name: row.name || row.Name,
@@ -557,6 +641,9 @@ export const addBulkProductsByInput = async (req: Request, res: Response): Promi
       return {
         ...product,
         category: toCanonicalCategory(product?.category),
+        weightOptions: Array.isArray(product?.weightOptions)
+          ? product.weightOptions.map(normalizeWeightOption)
+          : product?.weightOptions,
       };
     });
 

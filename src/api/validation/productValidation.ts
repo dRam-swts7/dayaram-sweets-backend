@@ -4,19 +4,27 @@ const productCategories = [
   'Andhra Sweets',
   'Cashew Sweets',
   'Bengali Sweets',
+  'Ghee & Milk Bengali Sweets',
+  'Milk Bengali Sweets',
   'Khoya Sweets',
   'Laddu Sweets',
   'Milk Sweets',
   'Home Foods',
   'Gift Boxes',
   'Category Unspecified',
+  'GHEE AND MILK BENGALI',
+  'HOME FOODS SWEET & NAMKINS',
+  'MILK Ghee / MILK BENGALI',
 ] as const;
 
 const weightOptionSchema = z.object({
   weight: z.string().min(1, 'Weight is required'),
+  unit: z.string().optional(),
+  value: z.number().min(0).optional(),
   price: z.number().positive('Price must be positive'),
   originalPrice: z.number().positive().optional(),
   stock: z.number().int().min(0, 'Stock cannot be negative'),
+  pieces: z.number().int().min(0).optional(),
 });
 
 const productBodySchema = z.object({

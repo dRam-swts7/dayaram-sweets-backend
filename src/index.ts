@@ -15,6 +15,7 @@ import adminRoutes from './api/routes/adminRoutes';
 import refundRoutes from './api/routes/refundRoutes';
 import adminRefundRoutes from './api/routes/adminRefundRoutes';
 import cloudinaryRoutes from './api/routes/cloudinaryRoutes';
+import bannerRoutes from './api/routes/bannerRoutes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
@@ -39,6 +40,7 @@ app.use('/api/reset-password', resetPasswordRoutes);
 app.use('/api/refunds', refundRoutes);
 app.use('/api/admin/refunds', adminRefundRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/banner', bannerRoutes);
 app.use('/api/cloudinary-signature', cloudinaryRoutes);
 // Health check
 app.get('/health', (req, res) => {
